@@ -1,0 +1,35 @@
+version: '3.7'
+
+services:
+  app:
+    # local dev container image name
+    # when build is done, image will be named like this
+    image: app:dev
+    build:
+      # default target for local dev
+      target: dev
+      context: .
+      dockerfile: Dockerfile
+      args:
+        # pass current user UID/GID as build arg
+        # docker compose will substitute ${WWW_DATA_UID} and ${WWW_DATA_GID} with values from environment
+        # then it will be used to update UID/GID of www-data user
+        WWW_DATA_UID: '${WWW_DATA_UID}'
+        WWW_DATA_GID: '${WWW_DATA_GID}'
+    depends_on:
+      # db need to be started before app
+      db:
+        condition: service_started
+  db:
+    image: postgres:15-bookworm
+    environment:
+      POSTGRES_USER: appuser
+      POSTGRES_PASSWORD: apppass
+      POSTGRES_DB: appdb
+    ports:
+      - "5444:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data:rw
+
+volumes:
+  db_data:

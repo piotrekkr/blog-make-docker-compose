@@ -1,0 +1,34 @@
+version: "3.7"
+
+services:
+  app:
+    build:
+      args:
+        # pass correct architecture as build arg
+        # this will allow installing proper libraries versions
+        ARCH: arm64
+    volumes:
+      # mount mutagen managed volume for better performance
+      - app:/app
+
+volumes:
+  app:
+
+x-mutagen:
+  sync:
+    defaults:
+      ignore:
+        vcs: true
+        paths:
+          - .idea # PHPStorm directory
+          - .DS_Store # macOS files
+      configurationBeta:
+        permissions:
+          defaultFileMode: 0644
+          defaultDirectoryMode: 0755
+          defaultOwner: "id:1000"
+          defaultGroup: "id:1000"
+    app:
+      alpha: "."
+      beta: "volume://app"
+      mode: "two-way-resolved"

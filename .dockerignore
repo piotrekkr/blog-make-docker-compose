@@ -1,0 +1,9 @@
+compose.*.yml
+compose.yml
+README.md
+Makefile
+Dockerfile
+var/cache/*
+var/logs/*
+vendor
+.gitignore
