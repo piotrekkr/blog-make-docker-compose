@@ -2,4 +2,6 @@ var/cache/*
 !var/cache/.gitkeep
 var/logs/*
 !var/logs/.gitkeep
+var/data/*
+!var/data/.gitkeep
 compose.override.yml

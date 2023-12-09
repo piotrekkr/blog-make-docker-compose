@@ -76,7 +76,7 @@ RUN <<-"EOT"
   useradd -m -u 1000 -g 1000 -d /home/app -o -s /bin/bash app
   # create home and cache directories for composer
   mkdir -p $COMPOSER_HOME $COMPOSER_CACHE_DIR
-  chown -R app:app $COMPOSER_HOME $COMPOSER_CACHE_DIR $APP_DATA_DIR
+  chown -R app:app $COMPOSER_HOME $COMPOSER_CACHE_DIR
 EOT
 
 WORKDIR /app
@@ -102,7 +102,7 @@ RUN <<-"EOT"
   # change UID of app user
   usermod -u ${APP_UID} app
   # fix ownership of composer and data directories
-  chown -R app:app $COMPOSER_HOME $COMPOSER_CACHE_DIR $APP_DATA_DIR
+  chown -R app:app $COMPOSER_HOME $COMPOSER_CACHE_DIR
 EOT
 
 # deafult command for local development and CI
