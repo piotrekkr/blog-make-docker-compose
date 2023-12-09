@@ -1,8 +1,6 @@
-version: "3.7"
-
 services:
   app:
     image: ${CI_IMAGE_TAG}
     volumes:
       # mount logs/ inside container, so we can have them easily accessible on host
-      - ./logs:/app/var/logs
+      - ./data:/app/var/data
