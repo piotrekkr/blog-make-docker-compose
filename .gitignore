@@ -5,3 +5,4 @@ var/logs/*
 var/data/*
 !var/data/.gitkeep
 compose.override.yml
+vendor

@@ -104,6 +104,9 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Start application
+        run: make start
+
       - name: Generate Report
         run: make generate-report
 
