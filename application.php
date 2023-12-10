@@ -11,11 +11,10 @@ use Symfony\Component\Console\Output\OutputInterface;
 $application = new Application();
 
 $application->register('generate-report')
-->addArgument('type', InputArgument::REQUIRED)
 ->setCode(function (InputInterface $input, OutputInterface $output): int {
     $date = new DateTimeImmutable();
     $report = <<<EOT
-    REPORT TYPE: {$input->getArgument('type')}
+    ======= REPORT =======
     DATE: {$date->format('Y-m-d')}
     TIME: {$date->format('H:i:s')}
     ...
