@@ -10,10 +10,18 @@ use Symfony\Component\Console\Output\OutputInterface;
 
 $application = new Application();
 
-$application->register('hello')
-->addArgument('username', InputArgument::REQUIRED)
+$application->register('generate-report')
+->addArgument('type', InputArgument::REQUIRED)
 ->setCode(function (InputInterface $input, OutputInterface $output): int {
-    $output->writeln("Hello {$input->getArgument('username')}!");
+    $date = new DateTimeImmutable();
+    $report = <<<EOT
+    REPORT TYPE: {$input->getArgument('type')}
+    DATE: {$date->format('Y-m-d')}
+    TIME: {$date->format('H:i:s')}
+    ...
+    EOT;
+    file_put_contents(getenv('APP_DATA_DIR').DIRECTORY_SEPARATOR.'report.txt', $report);
+    $output->writeln('Report generated!');
 
     return Command::SUCCESS;
 });
