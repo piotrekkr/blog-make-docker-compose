@@ -101,6 +101,8 @@ RUN <<-"EOT"
   groupmod -g ${APP_GID} app
   # change UID of app user
   usermod -u ${APP_UID} app
+  # fix ownership of composer and data directories
+  chown -R app:app $COMPOSER_HOME $COMPOSER_CACHE_DIR
 EOT
 
 # deafult command for local development and CI
