@@ -83,6 +83,10 @@ EOT
 
 WORKDIR /app
 
+# deafult command
+# will run application.php without args which should show command help and exit
+CMD ["php", "application.php"]
+
 ##############
 # DEV
 ##############
@@ -112,6 +116,9 @@ EOT
 # used just for keeping container running
 CMD ["tail", "-f", "/dev/null"]
 
+# run as app user by default
+USER app:app
+
 ##############
 # CI
 ##############
@@ -129,6 +136,9 @@ COPY . .
 
 # set ownership for all dirs inside var/ to app user
 RUN chown -R app:app var/*
+
+# run as app user by default
+USER app:app
 
 ##############
 # PROD
@@ -148,6 +158,5 @@ COPY . .
 # set ownership for all dirs inside var/ to app user
 RUN chown -R app:app var/*
 
-# deafult command for production use
-# will run application.php without args which should show command help and exit
-CMD ["php", "application.php"]
+# run as app user by default
+USER app:app

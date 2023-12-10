@@ -40,13 +40,13 @@ endif
 COMPOSE := $(COMPOSE_CMD) $(COMPOSE_CONFIGS)
 
 # execute command in already running app container
-EXEC_APP := $(COMPOSE) exec $(ALLOCATE_TTY) -u app app
+EXEC_APP := $(COMPOSE) exec $(ALLOCATE_TTY) app
 
-# run command in new app container without starting other services
-RUN_APP_NO_DEPS := $(COMPOSE) run --no-deps $(ALLOCATE_TTY) -u app app
+# run command in new app container without starting any other services
+RUN_APP_NO_DEPS := $(COMPOSE) run --no-deps $(ALLOCATE_TTY) app
 
 # execute command in already running app container as root
-EXEC_APP_ROOT := $(COMPOSE) exec $(ALLOCATE_TTY) app
+EXEC_APP_ROOT := $(COMPOSE) exec $(ALLOCATE_TTY) --user root app
 
 # get running user UID/GID and export as env vars for all targets
 export APP_UID ?= $(shell id -u)
