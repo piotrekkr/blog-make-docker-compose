@@ -101,8 +101,6 @@ RUN <<-"EOT"
   groupmod -g ${APP_GID} app
   # change UID of app user
   usermod -u ${APP_UID} app
-  # fix ownership of composer and data directories
-  chown -R app:app $COMPOSER_HOME $COMPOSER_CACHE_DIR
 EOT
 
 # deafult command for local development and CI
@@ -124,7 +122,7 @@ RUN composer install --no-interaction
 
 COPY . .
 
-# fix ownership for all dirs inside var/
+# set ownership for all dirs inside var/ to app user
 RUN chown -R app:app var/*
 
 ##############
@@ -142,7 +140,7 @@ RUN composer install --no-interaction --no-dev
 
 COPY . .
 
-# fix ownership for all dirs inside var/
+# set ownership for all dirs inside var/ to app user
 RUN chown -R app:app var/*
 
 # deafult command for production use
