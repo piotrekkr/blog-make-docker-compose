@@ -3,4 +3,4 @@ services:
     image: ${CI_IMAGE_TAG}
     volumes:
       # mount logs/ inside container, so we can have them easily accessible on host
-      - ./data:/app/var/data
+      - ./var/data:/app/var/data
