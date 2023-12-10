@@ -11,8 +11,9 @@ ARG DEBIAN_FRONTEND=noninteractive
 ARG COMPOSER_ALLOW_SUPERUSER=1
 
 # set composer directories
-ENV COMPOSER_HOME=/home/app/.composer
-ENV COMPOSER_CACHE_DIR=/home/app/.composer-cache
+ARG APP_HOME=/home/app
+ENV COMPOSER_HOME=${APP_HOME}/.composer
+ENV COMPOSER_CACHE_DIR=${APP_HOME}/.composer-cache
 
 # default application data directory
 ENV APP_DATA_DIR=/app/var/data
@@ -73,9 +74,10 @@ RUN <<-"EOT"
   rm -rf /var/lib/apt/lists/*
   # create `app` group and `app` user with default UID/GID equal to 1000
   groupadd -g 1000 -o app
-  useradd -m -u 1000 -g 1000 -d /home/app -o -s /bin/bash app
+  useradd -m -u 1000 -g 1000 -d "$APP_HOME" -o -s /bin/bash app
   # create home and cache directories for composer
   mkdir -p $COMPOSER_HOME $COMPOSER_CACHE_DIR
+  # set app user as owner
   chown -R app:app $COMPOSER_HOME $COMPOSER_CACHE_DIR
 EOT
 
@@ -101,8 +103,9 @@ RUN <<-"EOT"
   groupmod -g ${APP_GID} app
   # change UID of app user
   usermod -u ${APP_UID} app
-  # fix ownership of composer and data directories
-  chown -R app:app $COMPOSER_HOME $COMPOSER_CACHE_DIR
+  # fix ownership of composer directories and app user home directory
+  # need to be done after changing UID/GID
+  chown -R app:app $COMPOSER_HOME $COMPOSER_CACHE_DIR $APP_HOME
 EOT
 
 # deafult command for local development and CI
