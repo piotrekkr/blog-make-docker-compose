@@ -627,7 +627,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # set CI image tag to use in all jobs
+  # set CI image tag as env var to use in all jobs
   CI_IMAGE_TAG: ghcr.io/${{ github.repository }}:ci-run-${{ github.run_id }}
 
 jobs:
@@ -728,3 +728,38 @@ jobs:
       - name: Show Report Results
         run: cat var/data/report.txt
 ```
+
+GitHub Action workflow will be run when pull request is created or updated 
+or when there is some commit pushed to `main` branch. 
+The workflow contains three jobs.
+
+### Build CI Image Job
+
+In this stage I'm building and pushing CI version (`ci` stage in `Dockerfile`) 
+of app image to GitHub container registry. This image will then be used by 
+remaining jobs to execute checks and application commands.
+
+Please note that I do not use `make build` to build CI image. It is because 
+I want to use buildx with GitHub cache to speed up build. It cannot be easily 
+done with Docker Compose when in CI, so I'm using `docker/build-push-action@v4` 
+to manage all this for me.
+
+### PHP CS Fixer Check Job
+
+This job depends on successful execution of `Build CI Image` job before it will run.
+It will clone application code, authenticate in `ghcr.io` and then run 
+`make cs-check`. In the background, `make` will call `docker compose -f 
+compose.yml -f compose.ci.yml run --no-deps  app vendor/bin/php-cs-fixer check` 
+command that in turn will pull `app` image from `ghcr.io` (tagged with `CI_IMAGE_TAG` 
+value) and start `app` container with `vendor/bin/php-cs-fixer check` command. 
+
+### Generate Report Job
+
+Similar to the previous job but before command is executed, `make` will start 
+the whole project. It is required because report generation may require the database 
+to be up and running or some other service that is included in compose configuration.
+It was not the case with code style check because this check could be executed 
+without any other dependency.
+
+## Conclusion
+
