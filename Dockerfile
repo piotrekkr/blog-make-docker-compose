@@ -124,6 +124,9 @@ RUN composer install --no-interaction
 
 COPY . .
 
+# fix ownership for all dirs inside var/
+RUN chown -R app:app var/*
+
 ##############
 # PROD
 ##############
@@ -138,6 +141,9 @@ COPY composer.json composer.lock ./
 RUN composer install --no-interaction --no-dev
 
 COPY . .
+
+# fix ownership for all dirs inside var/
+RUN chown -R app:app var/*
 
 # deafult command for production use
 # will run application.php without args which should show command help and exit
