@@ -1,22 +1,13 @@
-Let's make some assumptions first:
+## Introduction
 
-* I have a simple PHP CLI app
-* Multiple developers are working on it
-* Developers are using different Operating systems and architectures
-  * Linux
-  * Windows with WSL2
-  * macOS (M1 or newer)
-* Developers have installed modern versions of `docker`, `docker compose` and `make`
+In today's fast-paced development environment, where multiple developers are
+collaborating on projects using different operating systems and architectures,
+automating development and CI tasks is crucial for consistency and efficiency.
+This blog post explores the integration of Docker Compose and the versatile
+`make` tool to streamline the development and CI processes for a simple PHP CLI 
+application.
 
-
-What I want to achieve:
-
-* Automate as much as possible so devs will just use simple commands to run tasks
-* Use a very similar configuration in CI as in local dev to minimize situations 
-  when something works on local dev but not in CI and vice versa
-* Everything should work the same way on Linux, Windows and macOS.
-
-What I will use to achieve this:
+### Tools used
 
 * [Docker](https://docs.docker.com/engine/) for building and running apps across 
   multiple operating systems and architectures
@@ -28,36 +19,40 @@ What I will use to achieve this:
 
 ## Project structure
 
+Before delving into the automation setup, let's outline the project structure:
+
 ```text
 .
 ├── .github
 │   └── workflows
-│       └── qa.yml            <= github workflow for PR
+│       └── qa.yml            <= GitHub workflow for PR  
 ├── var
 │   ├── cache
 │   │   └── .gitkeep
-│   ├── data                  <= app data
+│   ├── data                  <= application data  
 │   │   └── .gitkeep
 │   └── logs
-│       └── .gitkeep                   
-├── application.php           <= application "main" code 
-├── compose.arm64.yml         <= compose config for arm64 architectures 
-├── compose.ci.yml            <= compose config for CI
-├── compose.dev.yml           <= compose config for local dev
-├── compose.override.yml      <= local config for compose (not in GIT)
-├── composer.json             <= php composer project config (dependencies etc) 
-├── composer.lock             <= php composer lock file with exact packages to install
-├── compose.yml               <= docker compose "main" configuration file
-├── Dockerfile                <= docker image build instructions
+│       └── .gitkeep
+├── application.php           <= CLI application code
+├── compose.arm64.yml         <= Compose config for arm64 architectures
+├── compose.ci.yml            <= Compose config for CI
+├── compose.dev.yml           <= Compose config for local dev
+├── compose.override.yml      <= Local config for Compose (not in GIT)
+├── composer.json             <= PHP Composer project config (dependencies, etc.)
+├── composer.lock             <= PHP Composer lock file with exact packages to install
+├── compose.yml               <= Docker Compose "main" configuration file
+├── Dockerfile                <= Docker image build instructions
 ├── .dockerignore
 ├── .gitignore
-├── Makefile                  <= automation configuration
-└── .php-cs-fixer.dist.php    <= code style configuration
+├── Makefile                  <= Automation configuration  
+└── .php-cs-fixer.dist.php    <= Code style configuration  
 ```
 
-## For building and running use Docker and Dockerfile
+## Dockerfile and Multistage Build
 
-Here is a Dockerfile I will use to build the application image.
+To build and run the PHP CLI application across different environments,
+I will use a Dockerfile with a [multistage build](https://docs.docker.com/build/building/multi-stage/)
+approach.
 
 ```dockerfile
 #syntax=docker/dockerfile:1
@@ -179,12 +174,15 @@ EOT
 CMD ["tail", "-f", "/dev/null"]
 
 # run as app user by default
-USER app:app
+USER app
 
 ##############
 # CI
 ##############
 FROM dev as ci
+
+# switch back to root to install vendor packages and copy files
+USER root
 
 ENV APP_ENV=ci
 
@@ -200,7 +198,7 @@ COPY . .
 RUN chown -R app:app var/*
 
 # run as app user by default
-USER app:app
+USER app
 
 ##############
 # PROD
@@ -221,96 +219,59 @@ COPY . .
 RUN chown -R app:app var/*
 
 # run as app user by default
-USER app:app
+USER app
 ```
 
-I'm using a [multistage build](https://docs.docker.com/build/building/multi-stage/) 
-to separate and reuse parts of the image.
+Multistage build allows me to separate and reuse parts of the image.
+Below is a summary of the key stages:
 
 ### The `base` stage
 
-As the name suggests, this stage is used as a base for all other stages. Here 
-I'm doing things like:
-
-* setting environment variables (build time only and global) to use on container run
-* installing system packages, php extensions and tools
+This stage sets environment variables, installs system packages, PHP extensions,
+and tools. I use it as a "base" for other stages. 
 
 One thing to note is how I'm installing `wkhtmltox` library. OS architecture 
-is extracted from `dpkg --print-architecture` command output, and then it is 
-used to download the architecture-specific deb package. It will be handy for 
-macOS users as they will need `arm64` version of this package.
+is extracted from `dpkg --print-architecture` command output, and it is 
+used to download the architecture-specific `deb` package. This allows macOS users 
+to install proper `arm64` version of this package.
 
 ### The `dev` stage
 
-This stage is built on top of `base` stage and used as a target for local dev 
-image. Here I'm making some additional changes for developers like:
+Built upon the `base` stage, this stage customizes settings for local development.
+I'm adjusting the `APP_ENV` variable and installing additional packages specific to 
+development environment.
 
-* setting `APP_ENV` to `dev` so the application will know that we are local dev 
-  env, and it can work a little differently than in the production version 
-  (like disabling caching, loading different dotenv files, enabling debug 
-  extensions etc.)
-* installing additional packages and php extensions that are useful for local 
-  development
-* fix UID/GID and permissions for `app` user to match developer UID/GID
-* setting the default container command so the container will run until stopped
-
-
-Please note the use of build args, `APP_UID` and `APP_GID`. I'm using them to 
-adjust the UID and GID of the `app` user. The `app` user by default is using 
-`UID=1000` and `GID=1000`. All files created by the `app` user (like logs, 
-cache, temp files, reports etc.) will be owned by UID/GID of the `app` user. 
-This may be a problem for developers working locally because they are mounting 
-the whole project directory inside the running container (under `/app` directory). 
-There can be some file permission issues because the developer UID/GID and `app` 
-UID/GID inside the container may be different.
-
-Here is an example from my local machine:
-
-```shell
-$ id
-uid=1001(piotrekkr) gid=1001(piotrekkr) groups=1001(piotrekkr),90(network),98(power),108(vboxusers),970(docker),991(lp),998(wheel),1000(autologin)
-```
-
-To "fix" this issue, in `dev` stage, I'm updating UID/GID of `app` user to match 
-the UID/GID of the developer who is building the application image.
+Note that at this stage I'm also adjusting `UID` and `GID` of `app` user to match 
+the ones used by developer. It is done to address possible discrepancies 
+between the host and the container for smoother local development. 
 
 ### The `ci` stage
 
-This stage is built upon `dev` stage and actually copy project files and install 
-packages. The built image will include a fully functional application with all 
-packages (including development ones) installed and ready to use. I will use 
-this image in CI to run some quality checks like code formatting, etc. 
-It will also help me check if the build process works correctly. After all, 
-someone could change a line in `Dockerfile` that breaks the build and I should 
-catch it early. Since I actually copied files inside image, I'm also fixing 
-permissions to `var/*` so `app` user can write to them.  
+This stage, built on `dev`, copies project files and installs both development
+and production packages. It's designed for use in CI environments,
+facilitating quality checks and validating the build process.
 
-### The `production` stage
+Please note that after `COPY` command, files are owned by `root` and application 
+will be run as `app` user. Application needs a write access to directories 
+inside `var/`. As a fix, I'm changing ownership of those directories to `app` user. 
 
-This stage looks similar to CI stage but:
+### The `production` Stage
 
-* There shouldn't be dev stuff in the production image, so I use `base` stage as a base
-* `APP_ENV` is set to `prod` so the application knows that it is a production env
-* I'm installing only production packages (`--no-dev` option for `composer`)
+Similar to the `ci` stage but without development dependencies, this stage is 
+tailored for production use.
 
-## For easy project setup use Docker Compose
+## Docker Compose for Seamless Project Setup
 
-> Compose is a tool for defining and running multi-container Docker applications. 
-> With Compose, you use a YAML file to configure your application's services. 
-> Then, with a single command, you create and start all the services from your 
-> configuration.
+Docker Compose simplifies the orchestration of multi-container Docker applications.
+Without this tool, setting up a project with multiple containers would require 
+a lot of "manual" work. I would need to prepare commands for building app image, 
+creating networks and volumes, managing containers (with those networks and volumes), 
+showing logs, and many more. Also, services can depend on other services and I 
+would need to start them in proper order. Compose is doing all this work for me.
 
-The above snippet from documentation accurately describes what `Compose` tool 
-is used for. Without it setting up a project with multiple services (containers) 
-would be painful. I would need to manually run commands to build app images, 
-create networks and volumes, run containers (with those networks and volumes), 
-show logs, stop services, and many more. Also, I would need to do this in proper 
-order because services can depend on other services. Compose is doing all this 
-work for me.
-
-I'm using multiple compose configuration files. Compose allows for loading 
-multiple files at the same time, so depending on where compose is running and 
-what is the OS architecture, I will choose the proper configuration files to load.
+Compose allows for loading multiple files at the same time. Depending on 
+where compose is running and what is the OS architecture, I will choose the 
+proper configuration files to load.
 
 ### compose.yml
 
@@ -352,13 +313,10 @@ volumes:
 This is a "base" compose file that defines all services needed by the project. 
 I will always load this file as the first configuration file before any other.
 
-A few things to note:
-
-* I intentionally do not set any volume in the `app` service because the volume 
-  is not needed in CI and is set differently for macOS (with Mutagen) and also 
-  for Linux.
-* I expect that environment variables like `APP_GID` and `APP_UID` to be set 
-  when compose is running
+Not setting any volume in the `app` service is intentional. Volume with project 
+files is not needed when in CI and is set differently when running on macOS 
+(with Mutagen). I also expect that environment variables `APP_GID` and `APP_UID` 
+are set before compose is started.
 
 ### compose.dev.yml
 
@@ -369,10 +327,9 @@ services:
       - .:/app
 ```
 
-This file will be loaded when developing on a local machine with Linux. Here 
-I'm just adding a volume mount so the full project directory is mounted under 
-`/app` inside the `app` container. I will load this file as the next one after 
-`compose.yml`.
+Loaded for local development on Linux, this file introduces volume mounts for
+the entire project directory inside the `app` container. I will load this file 
+as the next one after `compose.yml`.
 
 ### compose.ci.yml
 
@@ -385,19 +342,18 @@ services:
       - ./var/data:/app/var/data
 ```
 
-This is an additional configuration loaded when operating in CI. I'm not mounting 
-application code inside the CI container because the CI image should already 
-contain a fully functional application. On the other hand, I want to be able to 
-see some report files that are generated when the application is running in CI. 
-To achieve this, I'm mounting a local directory `./var/data` into container 
-`/app/var/data`. All files created inside container `/app/var/data` will show up 
-on the host machine in `./var/data`.
+This is an additional configuration loaded when running in CI. I'm relying on 
+pre-built CI image to run CI tasks (defined in `CI_IMAGE_TAG`). 
+
+I'm mounting only a local directory `./var/data` into container `/app/var/data`. 
+My goal is to be able to access all files created inside container `/app/var/data` 
+on the host machine.
 
 Please note the usage of `CI_IMAGE_TAG` environment variable that should be 
 unique per each workflow run. Creating a pull request or pushing new commits 
 will trigger a workflow run in CI that will generate and push the app image 
 to `ghcr.io` (GitHub docker registry). At the same time, there can be multiple 
-workflow runs from different pull requests. By using a unique docker image tag 
+workflows running from different pull requests. By using a unique docker image tag 
 for each CI workflow run, I can be sure that new images will not override existing 
 ones inside the registry.
 
@@ -444,10 +400,10 @@ original macOS speed.
 services: {}
 ```
 
-This file is loaded as the last one on non-CI environments. It is not tracked 
-by GIT and can be used by developers to modify some compose configurations to 
-their specific needs. For example, a developer may want to set some container-level 
-environment variable just for their own local dev environment. It can be done 
+Loaded as the last one on non-CI environments. Not tracked by GIT. It can be used 
+by developers to modify compose configurations to their specific needs. For 
+example, a developer may want to set some container-level environment variable 
+just for their own local dev environment. It can be done 
 like this:
 
 ```yaml
@@ -458,20 +414,18 @@ services:
       XDEBUG_START_WITH_REQUEST: 'yes' #watch out for booleans in yaml
 ```
 
-Since this file is not tracked, it will not affect anyone else. This file is 
+Because this file is not tracked, changes will not affect anyone else. It is 
 generated automatically by `make` (if not exist) on local dev environments.
 
-## `Make` to connect them all
+## Utilizing Make for Automation
 
 > GNU Make is a tool which controls the generation of executables and other 
 > non-source files of a program from the program's source files.
 
 Make is mostly focused on generating executables, but it can also be used to 
-automate tasks. With `make` I will be able to "connect" Docker, Dockerfile and 
-Docker Compose and automate project setup and common tasks like managing app 
-lifecycle, checking code style, installing packages etc.
-
-Here is a Makefile I will use:
+automate tasks. It will serve me as the glue to connect Docker, Docker Compose, 
+and various project tasks such as building, starting and stopping project, 
+checking code style, etc.
 
 ```Makefile
 .SILENT:
@@ -576,7 +530,7 @@ generate-report:
 .PHONY: build start build-start stop down status logs install cli cli-root cs-check cs-fix generate-report
 ```
 
-When I run some targets, such as `make build`, `Make` will:
+When I run targets, such as `make build`, it will:
 
 1. check where it is executed
 2. choose the appropriate command to use (`docker compose` or `mutagen-compose`)
@@ -602,12 +556,11 @@ tasks like:
   `make cs-fix`
 * Need to work on another project - `make stop`
 
-Commands are convenient to use and easy to remember. 
+Using `make` targets is convenient and easy to remember. 
 
-## CI
+## CI Integration with GitHub Actions
 
-In CI I will also use `make` commands to run tasks. Below is an example of how 
-to use `make` with GitHub Actions.
+In CI, Make commands seamlessly integrate with GitHub Actions
 
 ```yaml
 name: Quality Assurance
@@ -729,37 +682,54 @@ jobs:
         run: cat var/data/report.txt
 ```
 
-GitHub Action workflow will be run when pull request is created or updated 
-or when there is some commit pushed to `main` branch. 
-The workflow contains three jobs.
+Workflow will run when pull request is created or updated or when there is a 
+commit pushed to `main` branch. It contains three jobs.
 
 ### Build CI Image Job
 
-In this stage I'm building and pushing CI version (`ci` stage in `Dockerfile`) 
-of app image to GitHub container registry. This image will then be used by 
-remaining jobs to execute checks and application commands.
+In this job, I'm building and pushing CI version of app image to GitHub container 
+registry. This image will then be used by other jobs to execute checks and other 
+application commands.
 
-Please note that I do not use `make build` to build CI image. It is because 
-I want to use buildx with GitHub cache to speed up build. It cannot be easily 
-done with Docker Compose when in CI, so I'm using `docker/build-push-action@v4` 
-to manage all this for me.
+Please note that I do not use `make build` to build CI image. I want to use 
+buildx with GitHub cache to speed up build. It cannot be easily done with Docker 
+Compose when in CI, so I'm using `docker/build-push-action@v4` to manage all this 
+for me.
 
 ### PHP CS Fixer Check Job
 
-This job depends on successful execution of `Build CI Image` job before it will run.
-It will clone application code, authenticate in `ghcr.io` and then run 
-`make cs-check`. In the background, `make` will call `docker compose -f 
-compose.yml -f compose.ci.yml run --no-deps  app vendor/bin/php-cs-fixer check` 
-command that in turn will pull `app` image from `ghcr.io` (tagged with `CI_IMAGE_TAG` 
-value) and start `app` container with `vendor/bin/php-cs-fixer check` command. 
+Depends on successful execution of `Build CI Image` job. It will clone 
+application code, authenticate in `ghcr.io` and run `make cs-check`. 
+
+In the background, `make` will call `docker compose -f compose.yml 
+-f compose.ci.yml run --no-deps  app vendor/bin/php-cs-fixer check` 
+command that in turn will pull `app` image from `ghcr.io` (tagged with 
+`CI_IMAGE_TAG` value) and start `app` container with `vendor/bin/php-cs-fixer check` 
+command. 
 
 ### Generate Report Job
 
-Similar to the previous job but before command is executed, `make` will start 
-the whole project. It is required because report generation may require the database 
-to be up and running or some other service that is included in compose configuration.
-It was not the case with code style check because this check could be executed 
-without any other dependency.
+Similar to the previous job but starts the entire project, allowing for report 
+generation with necessary dependencies. It was not the case with code style 
+check because this check requires only `app` service to run.
 
 ## Conclusion
+
+I'm leveraging Docker Compose, Dockerfile multistage builds, and Make, to provide 
+a consistent and efficient development and CI experience across multiple 
+environments. Whether developers are working on Linux, Windows with WSL2, or macOS, 
+they can focus on coding, relying on streamlined commands and automated 
+processes for project tasks. By adopting this approach, I can provide a reliable 
+development pipeline and minimizing discrepancies between local development 
+and CI environments.
+
+## Bonus — Alternatives to Make
+
+Although GNU Make does its job, it may seem outdated and not best for the job.
+Fortunately, there are other projects that could be used as a replacement:
+
+- [just](https://github.com/casey/just) - a handy way to save and run
+  project-specific commands.
+- [task](https://github.com/go-task/task) - Task is a task runner / build tool
+  that aims to be simpler and easier to use than, for example, GNU Make.
 
