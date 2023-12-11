@@ -117,12 +117,15 @@ EOT
 CMD ["tail", "-f", "/dev/null"]
 
 # run as app user by default
-USER app:app
+USER app
 
 ##############
 # CI
 ##############
 FROM dev as ci
+
+# switch back to root to install vendor packages and copy files
+USER root
 
 ENV APP_ENV=ci
 
@@ -138,7 +141,7 @@ COPY . .
 RUN chown -R app:app var/*
 
 # run as app user by default
-USER app:app
+USER app
 
 ##############
 # PROD
@@ -159,4 +162,4 @@ COPY . .
 RUN chown -R app:app var/*
 
 # run as app user by default
-USER app:app
+USER app
