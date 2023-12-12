@@ -1,0 +1,27 @@
+services:
+  app:
+    volumes:
+      # mount mutagen managed volume for better performance
+      - app:/app
+
+volumes:
+  app:
+
+x-mutagen:
+  sync:
+    defaults:
+      ignore:
+        vcs: true
+        paths:
+          - .idea # PHPStorm directory
+          - .DS_Store # macOS files
+      configurationBeta:
+        permissions:
+          defaultFileMode: 0644
+          defaultDirectoryMode: 0755
+          defaultOwner: id:${APP_UID}
+          defaultGroup: id:${APP_GID}
+    app:
+      alpha: .
+      beta: volume://app
+      mode: two-way-resolved

@@ -1,0 +1,32 @@
+version: '3.7'
+
+services:
+  app:
+    # local dev container image name
+    # when build is done, image will be tagged like docker.io/library/app:dev
+    image: app:dev
+    build:
+      # default target for local dev
+      target: dev
+      context: .
+      dockerfile: Dockerfile
+      args:
+        # pass current user UID/GID as build arg
+        # compose will substitute ${APP_UID} and ${APP_GID} with values from environment
+        APP_UID: ${APP_UID}
+        APP_GID: ${APP_GID}
+    depends_on:
+      # db need to be started before the app
+      db:
+        condition: service_started
+  db:
+    image: postgres:15-bookworm
+    environment:
+      POSTGRES_USER: appuser
+      POSTGRES_PASSWORD: apppass
+      POSTGRES_DB: appdb
+    volumes:
+      - db_data:/var/lib/postgresql/data:rw
+
+volumes:
+  db_data:
